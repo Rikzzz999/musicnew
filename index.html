@@ -1,23 +1,23 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MyMusic - Pemutar Lagu Offline</title>
+  <title>AppsMusical 🎶</title>
   <style>
     body {
       background: url('Tanjirousano.jpg') no-repeat center center fixed;
       background-size: cover;
       font-family: sans-serif;
       padding: 20px;
+      color: white;
     }
     h1 {
       font-size: 1.5em;
       margin-bottom: 10px;
       color: black;
     }
-    input, button {
+    input, button, select {
       width: 100%;
       padding: 12px;
       margin: 10px 0;
@@ -25,7 +25,7 @@
       border-radius: 6px;
       border: none;
     }
-    input {
+    input, select {
       background-color: #222;
       color: white;
     }
@@ -36,155 +36,309 @@
     }
     .audio-card {
       background-color: royalblue;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 20px;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 0.9em;
+    }
+    .audio-card small {
+      display: block;
+      margin-top: 4px;
+      color: #f0f0f0;
+      font-size: 0.8em;
     }
     audio {
       width: 100%;
-      margin-top: 10px;
+      margin-top: 8px;
     }
     #floatingPlayer {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 300px;
-      background-color: #222;
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 280px;
+      background-color: rgba(0,0,0,0.6);
+      backdrop-filter: blur(5px);
       border-radius: 10px;
       display: none;
       box-shadow: 0 0 10px #000;
       z-index: 9999;
+      color: white;
       cursor: move;
     }
     #floatingPlayer .controls {
       padding: 10px;
     }
+    .toggle-btns {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .toggle-btns button {
+      flex: 1;
+      padding: 10px;
+      background: #444;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .toggle-btns button.active {
+      background-color: red;
+      color: black;
+    }
+    small.delete {
+      display:block;
+      text-align:right;
+      color:white;
+      cursor:pointer;
+    }
   </style>
 </head>
 <body>
 
-<h1>AppsMusical</h1>
-  <div class="card">
-    <input id="audioLink" type="text" placeholder="Masukkan link lagu direct (MP3)">
-  <input id="audioTitle" type="text" placeholder="Judul lagu">
-  <button onclick="tambahLagu()">Tambah & Putar</button>
+<h1>AppsMusical 🎶</h1>
+
+<input id="audioLink" type="text" placeholder="Masukkan link lagu direct (MP3)">
+<input id="audioTitle" type="text" placeholder="Judul lagu">
+<select id="playlistSelect">
+  <option value="default">Playlist Utama</option>
+</select>
+<button onclick="tambahLagu()">Tambah & Putar</button>
+<button onclick="buatPlaylist()">➕ Buat Playlist Baru</button>
+<small class="delete" onclick="hapusPlaylist()">🗑️ Hapus Playlist Ini</small>
+
+<div class="toggle-btns">
+  <button id="repeatBtn" onclick="toggleRepeat()">🔁 Repeat</button>
+  <button id="shuffleBtn" onclick="toggleShuffle()">🔀 Shuffle</button>
 </div>
-  <div id="audioList"></div>
 
-  <div id="floatingPlayer" onmousedown="startDrag(event)">
-    <div class="controls">
-      <strong id="floatTitle">Lagu</strong><br/>
-      <audio id="floatAudio" controls></audio>
-      <button onclick="tutupFloating()">Tutup</button>
-    </div>
+<div id="audioList"></div>
+
+<!-- Mini Player -->
+<div id="floatingPlayer" onmousedown="startDrag(event)">
+  <div class="controls">
+    <strong id="floatTitle">Lagu</strong><br/>
+    <audio id="floatAudio" controls></audio><br/>
+    <button onclick="tutupFloating()">Tutup</button>
+    <button onclick="putarSelanjutnya()">Selanjutnya ▶️</button>
   </div>
+</div>
 
-  <script>
-    let daftarLagu = [];
+<script>
+  let daftarLagu = { default: [] };
+  let playlistAktif = "default";
+  let indeksSekarang = 0;
+  let repeat = false;
+  let shuffle = false;
 
-    window.onload = function() {
-      const data = localStorage.getItem('laguTersimpan');
-      if (data) {
-        daftarLagu = JSON.parse(data);
-        daftarLagu.forEach(item => renderLagu(item.link, item.title));
-      }
-    };
-
-    function simpanKeDatabase() {
-      localStorage.setItem('laguTersimpan', JSON.stringify(daftarLagu));
+  window.onload = function() {
+    const data = localStorage.getItem('laguTersimpanPlaylist');
+    if (data) {
+      daftarLagu = JSON.parse(data);
+      renderSemuaPlaylist();
+      isiSelectPlaylist();
     }
+    document.getElementById("floatAudio").addEventListener("ended", putarSelanjutnya);
+  };
 
-    function tambahLagu() {
-      const link = document.getElementById("audioLink").value.trim();
-      const title = document.getElementById("audioTitle").value.trim();
-      if (!link.endsWith(".mp3")) {
-        alert("Link harus file lagu langsung (.mp3)");
-        return;
-      }
-      daftarLagu.push({ link, title });
+  function simpanKeDatabase() {
+    localStorage.setItem('laguTersimpanPlaylist', JSON.stringify(daftarLagu));
+  }
+
+  function isiSelectPlaylist() {
+    const select = document.getElementById("playlistSelect");
+    select.innerHTML = "";
+    for (let nama in daftarLagu) {
+      const opt = document.createElement("option");
+      opt.value = nama;
+      opt.textContent = nama;
+      if (nama === playlistAktif) opt.selected = true;
+      select.appendChild(opt);
+    }
+  }
+
+  function buatPlaylist() {
+    const nama = prompt("Masukkan nama playlist:");
+    if (nama && !daftarLagu[nama]) {
+      daftarLagu[nama] = [];
+      playlistAktif = nama;
       simpanKeDatabase();
-      renderLagu(link, title);
-      document.getElementById("audioLink").value = "";
-      document.getElementById("audioTitle").value = "";
+      isiSelectPlaylist();
+      renderSemuaPlaylist();
+      alert("Playlist berhasil dibuat!");
     }
+  }
 
-    function renderLagu(link, title) {
-      const list = document.getElementById("audioList");
+  function hapusPlaylist() {
+    if (playlistAktif === "default") {
+      alert("Playlist utama tidak bisa dihapus.");
+      return;
+    }
+    const konfirmasi = confirm(`Yakin ingin menghapus playlist "${playlistAktif}"?`);
+    if (konfirmasi) {
+      delete daftarLagu[playlistAktif];
+      playlistAktif = "default";
+      simpanKeDatabase();
+      isiSelectPlaylist();
+      renderSemuaPlaylist();
+    }
+  }
+
+  document.getElementById("playlistSelect").addEventListener("change", function() {
+    playlistAktif = this.value;
+    renderSemuaPlaylist();
+  });
+
+  function tambahLagu() {
+    const link = document.getElementById("audioLink").value.trim();
+    const title = document.getElementById("audioTitle").value.trim();
+    if (!link.endsWith(".mp3")) {
+      alert("Link harus file lagu langsung (.mp3)");
+      return;
+    }
+    daftarLagu[playlistAktif].push({ link, title });
+    simpanKeDatabase();
+    renderSemuaPlaylist();
+    document.getElementById("audioLink").value = "";
+    document.getElementById("audioTitle").value = "";
+  }
+
+  function renderSemuaPlaylist() {
+    const list = document.getElementById("audioList");
+    list.innerHTML = "";
+    if (!daftarLagu[playlistAktif]) return;
+    daftarLagu[playlistAktif].forEach(item => {
       const container = document.createElement("div");
       container.className = "audio-card";
 
       const titleEl = document.createElement("h3");
-      titleEl.textContent = title || "Tanpa Judul";
+      titleEl.textContent = item.title || "Tanpa Judul";
 
       const audio = document.createElement("audio");
-      audio.src = link;
+      audio.src = item.link;
       audio.controls = true;
 
-      const btnDownload = document.createElement("button");
-      btnDownload.textContent = "Download Lagu";
-      btnDownload.onclick = () => window.open(link, "_blank");
+      audio.addEventListener("loadedmetadata", () => {
+        const durasi = container.querySelector(".durasi");
+        if (durasi) durasi.textContent = "Durasi: " + formatDurasi(audio.duration);
+      });
+
+      const durasi = document.createElement("small");
+      durasi.className = "durasi";
+      durasi.textContent = "Durasi: ...";
 
       const btnFloat = document.createElement("button");
       btnFloat.textContent = "MiniPlayer";
-      btnFloat.onclick = () => tampilkanFloating(link, title);
+      btnFloat.onclick = () => tampilkanFloating(item.link, item.title);
 
       const btnHapus = document.createElement("button");
       btnHapus.textContent = "Hapus";
       btnHapus.onclick = () => {
-        container.remove();
-        daftarLagu = daftarLagu.filter(l => l.link !== link);
+        daftarLagu[playlistAktif] = daftarLagu[playlistAktif].filter(l => l.link !== item.link);
         simpanKeDatabase();
+        renderSemuaPlaylist();
       };
+
+      const linkDownload = document.createElement("small");
+      linkDownload.textContent = "⬇️ Download Lagu";
+      linkDownload.style.cursor = "pointer";
+      linkDownload.onclick = () => window.open(item.link, "_blank");
 
       container.appendChild(titleEl);
       container.appendChild(audio);
-      container.appendChild(btnDownload);
+      container.appendChild(durasi);
       container.appendChild(btnFloat);
       container.appendChild(btnHapus);
+      container.appendChild(linkDownload);
 
       list.appendChild(container);
-    }
+    });
+  }
 
-    function tampilkanFloating(link, title) {
-      const floatPlayer = document.getElementById("floatingPlayer");
-      const floatAudio = document.getElementById("floatAudio");
-      const floatTitle = document.getElementById("floatTitle");
+  function tampilkanFloating(link, title) {
+    const playlist = daftarLagu[playlistAktif];
+    indeksSekarang = playlist.findIndex(l => l.link === link);
 
-      floatAudio.src = link;
-      floatAudio.play();
-      floatTitle.textContent = title || "Lagu";
-      floatPlayer.style.display = "block";
-    }
+    const floatPlayer = document.getElementById("floatingPlayer");
+    const floatAudio = document.getElementById("floatAudio");
+    const floatTitle = document.getElementById("floatTitle");
 
-    function tutupFloating() {
-      const floatAudio = document.getElementById("floatAudio");
-      floatAudio.pause();
-      floatAudio.src = "";
-      document.getElementById("floatingPlayer").style.display = "none";
-    }
+    floatAudio.src = link;
+    floatAudio.play();
+    floatTitle.textContent = title || "Lagu";
+    floatPlayer.style.display = "block";
+  }
 
-    let offsetX, offsetY, isDragging = false;
-    function startDrag(e) {
-      isDragging = true;
-      const win = document.getElementById("floatingPlayer");
-      offsetX = e.clientX - win.offsetLeft;
-      offsetY = e.clientY - win.offsetTop;
-      document.onmousemove = dragWindow;
-      document.onmouseup = stopDrag;
-    }
-    function dragWindow(e) {
-      if (isDragging) {
-        const win = document.getElementById("floatingPlayer");
-        win.style.left = (e.clientX - offsetX) + "px";
-        win.style.top = (e.clientY - offsetY) + "px";
+  function putarSelanjutnya() {
+    const playlist = daftarLagu[playlistAktif];
+    if (playlist.length === 0) return;
+
+    if (shuffle) {
+      indeksSekarang = Math.floor(Math.random() * playlist.length);
+    } else {
+      indeksSekarang++;
+      if (indeksSekarang >= playlist.length) {
+        if (repeat) {
+          indeksSekarang = 0;
+        } else {
+          tutupFloating();
+          return;
+        }
       }
     }
-    function stopDrag() {
-      isDragging = false;
-      document.onmousemove = null;
-      document.onmouseup = null;
+
+    const lagu = playlist[indeksSekarang];
+    tampilkanFloating(lagu.link, lagu.title);
+  }
+
+  function tutupFloating() {
+    const floatAudio = document.getElementById("floatAudio");
+    floatAudio.pause();
+    floatAudio.src = "";
+    document.getElementById("floatingPlayer").style.display = "none";
+  }
+
+  function toggleRepeat() {
+    repeat = !repeat;
+    document.getElementById("repeatBtn").classList.toggle("active", repeat);
+  }
+
+  function toggleShuffle() {
+    shuffle = !shuffle;
+    document.getElementById("shuffleBtn").classList.toggle("active", shuffle);
+  }
+
+  function formatDurasi(d) {
+    const m = Math.floor(d / 60);
+    const s = Math.floor(d % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // Dragable Mini Player
+  let offsetX, offsetY, isDragging = false;
+  const floatPlayer = document.getElementById("floatingPlayer");
+
+  function startDrag(e) {
+    isDragging = true;
+    offsetX = e.clientX - floatPlayer.offsetLeft;
+    offsetY = e.clientY - floatPlayer.offsetTop;
+    document.addEventListener("mousemove", dragWindow);
+    document.addEventListener("mouseup", stopDrag);
+  }
+
+  function dragWindow(e) {
+    if (isDragging) {
+      floatPlayer.style.left = (e.clientX - offsetX) + "px";
+      floatPlayer.style.top = (e.clientY - offsetY) + "px";
     }
-  </script>
+  }
+
+  function stopDrag() {
+    isDragging = false;
+    document.removeEventListener("mousemove", dragWindow);
+    document.removeEventListener("mouseup", stopDrag);
+  }
+</script>
 
 </body>
 </html>
