@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MyMusic - Pemutar Lagu Offline</title>
+  <style>
+    body {
+      background: url('Tanjirousano.jpg') no-repeat center center fixed;
+      background-size: cover;
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 10px;
+      color: black;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      font-size: 1em;
+      border-radius: 6px;
+      border: none;
+    }
+    input {
+      background-color: #222;
+      color: white;
+    }
+    button {
+      background-color: red;
+      color: black;
+      cursor: pointer;
+    }
+    .audio-card {
+      background-color: royalblue;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+    #floatingPlayer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      background-color: #222;
+      border-radius: 10px;
+      display: none;
+      box-shadow: 0 0 10px #000;
+      z-index: 9999;
+      cursor: move;
+    }
+    #floatingPlayer .controls {
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>AppsMusical</h1>
+  <div class="card">
+    <input id="audioLink" type="text" placeholder="Masukkan link lagu direct (MP3)">
+  <input id="audioTitle" type="text" placeholder="Judul lagu">
+  <button onclick="tambahLagu()">Tambah & Putar</button>
+</div>
+  <div id="audioList"></div>
+
+  <div id="floatingPlayer" onmousedown="startDrag(event)">
+    <div class="controls">
+      <strong id="floatTitle">Lagu</strong><br/>
+      <audio id="floatAudio" controls></audio>
+      <button onclick="tutupFloating()">Tutup</button>
+    </div>
+  </div>
+
+  <script>
+    let daftarLagu = [];
+
+    window.onload = function() {
+      const data = localStorage.getItem('laguTersimpan');
+      if (data) {
+        daftarLagu = JSON.parse(data);
+        daftarLagu.forEach(item => renderLagu(item.link, item.title));
+      }
+    };
+
+    function simpanKeDatabase() {
+      localStorage.setItem('laguTersimpan', JSON.stringify(daftarLagu));
+    }
+
+    function tambahLagu() {
+      const link = document.getElementById("audioLink").value.trim();
+      const title = document.getElementById("audioTitle").value.trim();
+      if (!link.endsWith(".mp3")) {
+        alert("Link harus file lagu langsung (.mp3)");
+        return;
+      }
+      daftarLagu.push({ link, title });
+      simpanKeDatabase();
+      renderLagu(link, title);
+      document.getElementById("audioLink").value = "";
+      document.getElementById("audioTitle").value = "";
+    }
+
+    function renderLagu(link, title) {
+      const list = document.getElementById("audioList");
+      const container = document.createElement("div");
+      container.className = "audio-card";
+
+      const titleEl = document.createElement("h3");
+      titleEl.textContent = title || "Tanpa Judul";
+
+      const audio = document.createElement("audio");
+      audio.src = link;
+      audio.controls = true;
+
+      const btnDownload = document.createElement("button");
+      btnDownload.textContent = "Download Lagu";
+      btnDownload.onclick = () => window.open(link, "_blank");
+
+      const btnFloat = document.createElement("button");
+      btnFloat.textContent = "MiniPlayer";
+      btnFloat.onclick = () => tampilkanFloating(link, title);
+
+      const btnHapus = document.createElement("button");
+      btnHapus.textContent = "Hapus";
+      btnHapus.onclick = () => {
+        container.remove();
+        daftarLagu = daftarLagu.filter(l => l.link !== link);
+        simpanKeDatabase();
+      };
+
+      container.appendChild(titleEl);
+      container.appendChild(audio);
+      container.appendChild(btnDownload);
+      container.appendChild(btnFloat);
+      container.appendChild(btnHapus);
+
+      list.appendChild(container);
+    }
+
+    function tampilkanFloating(link, title) {
+      const floatPlayer = document.getElementById("floatingPlayer");
+      const floatAudio = document.getElementById("floatAudio");
+      const floatTitle = document.getElementById("floatTitle");
+
+      floatAudio.src = link;
+      floatAudio.play();
+      floatTitle.textContent = title || "Lagu";
+      floatPlayer.style.display = "block";
+    }
+
+    function tutupFloating() {
+      const floatAudio = document.getElementById("floatAudio");
+      floatAudio.pause();
+      floatAudio.src = "";
+      document.getElementById("floatingPlayer").style.display = "none";
+    }
+
+    let offsetX, offsetY, isDragging = false;
+    function startDrag(e) {
+      isDragging = true;
+      const win = document.getElementById("floatingPlayer");
+      offsetX = e.clientX - win.offsetLeft;
+      offsetY = e.clientY - win.offsetTop;
+      document.onmousemove = dragWindow;
+      document.onmouseup = stopDrag;
+    }
+    function dragWindow(e) {
+      if (isDragging) {
+        const win = document.getElementById("floatingPlayer");
+        win.style.left = (e.clientX - offsetX) + "px";
+        win.style.top = (e.clientY - offsetY) + "px";
+      }
+    }
+    function stopDrag() {
+      isDragging = false;
+      document.onmousemove = null;
+      document.onmouseup = null;
+    }
+  </script>
+
+</body>
+</html>
